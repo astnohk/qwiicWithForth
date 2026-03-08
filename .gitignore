@@ -1,0 +1,11 @@
+**/*.eo
+**/*.o
+**/pfdicdat.h
+**/pforth
+**/pforth.dic
+**/pforth_standalone
+**/platform/win32/**/.vs
+**/platform/win32/**/Debug
+**/platform/win32/**/Release
+**/fatest1.txt
+build/
