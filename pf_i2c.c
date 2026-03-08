@@ -1,21 +1,126 @@
 #ifndef PF_USER_CUSTOM
 
+#include <errno.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include <sys/ioctl.h>
+#include <linux/i2c-dev.h>
+#include <linux/i2c.h>
+
 #include "pforth/csrc/pf_all.h"
 
-static cell_t I2CREAD( cell_t Val );
-static void I2CWRITE( cell_t Val1, cell_t Val2 );
+#define I2C_BUFFER_LENGTH_MAX 256
 
-static cell_t I2CREAD( cell_t Val )
+static cell_t I2CREAD(cell_t buffer_len, cell_t addr);
+static cell_t I2CWRITE(cell_t buffer_len, cell_t addr);
+
+static cell_t I2CREAD(cell_t buffer_len, cell_t addr)
 {
-    MSG_NUM_D("I2CREAD: Val = ", Val);
-    return Val+1;
+    const char *dev = "/dev/i2c-1";
+    struct i2c_msg msg;
+    struct i2c_rdwr_ioctl_data packets;
+    int8_t ret;
+    uint8_t status = 0;
+    int32_t fd;
+    uint8_t buffer[I2C_BUFFER_LENGTH_MAX];
+    size_t buf_len;
+    size_t i;
+
+    MSG("I2CREAD: ADDR = ");
+    ffDot(addr);
+    MSG(", buf_len = ");
+    ffDot(buffer_len);
+
+    buf_len = (size_t)buffer_len;
+    if (buf_len > I2C_BUFFER_LENGTH_MAX)
+    {
+        MSG("I2CREAD: buf_len exceeds ");
+        ffDot(I2C_BUFFER_LENGTH_MAX);
+        return -1;
+    }
+
+    msg.addr = addr;
+    msg.flags = I2C_M_RD;
+    msg.buf = buffer;
+    msg.len = buf_len;
+
+    packets.msgs = &msg;
+    packets.nmsgs = 1;
+
+    fd = open(dev, O_RDWR);
+    if (fd < 0)
+    {
+        perror(dev);
+        status = 255;
+        return status;
+    }
+    ret = ioctl(fd, I2C_RDWR, &packets);
+    if (ret < 0)
+    {
+        perror(dev);
+        status = -1;
+        return status;
+    }
+    close(fd);
+
+    MSG("I2CREAD: success to read.");
+
+    for (i = 0; i < buf_len; i++)
+    {
+        PUSH_DATA_STACK((cell_t)buffer[i]);
+    }
+    return 0;
 }
 
-static void I2CWRITE( cell_t Val1, cell_t Val2 )
+static cell_t I2CWRITE(cell_t buffer_len, cell_t addr)
 {
+    const char *dev = "/dev/i2c-1";
+    struct i2c_msg msg;
+    struct i2c_rdwr_ioctl_data packets;
+    int8_t ret;
+    uint8_t status = 0;
+    int32_t fd;
+    uint8_t buffer[I2C_BUFFER_LENGTH_MAX];
+    size_t buf_len;
+    size_t i;
 
-    MSG("I2CWRITE: Val1 = "); ffDot(Val1);
-    MSG_NUM_D(", Val2 = ", Val2);
+    buf_len = (size_t)buffer_len;
+    if (buf_len > I2C_BUFFER_LENGTH_MAX)
+    {
+        MSG("I2CWRITE: buf_len exceeds ");
+        ffDot(I2C_BUFFER_LENGTH_MAX);
+        return -1;
+    }
+    for (i = 0; i < buf_len; i++)
+    {
+        buffer[buf_len - 1 - i] = (uint8_t)POP_DATA_STACK;
+    }
+    msg.addr = addr;
+    msg.flags = 0;
+    msg.buf = buffer;
+    msg.len = buf_len;
+
+    packets.msgs = &msg;
+    packets.nmsgs = 1;
+
+    fd = open(dev, O_RDWR);
+    if (fd < 0)
+    {
+        //perror(dev);
+        status = 255;
+        return status;
+    }
+    ret = ioctl(fd, I2C_RDWR, &packets);
+    if (ret < 0)
+    {
+        //perror(dev);
+        status = -1;
+        return status;
+    }
+
+    close(fd);
+
+    return status;
 }
 
 #ifdef PF_NO_GLOBAL_INIT
@@ -57,9 +162,9 @@ Err CompileCustomFunctions( void )
 ** Make sure order of functions matches that in LoadCustomFunctionTable().
 ** Parameters are: Name in UPPER CASE, Function, Index, Mode, NumParams
 */
-    err = CreateGlueToC( "I2CREAD", i++, C_RETURNS_VALUE, 1 );
+    err = CreateGlueToC( "I2CREAD", i++, C_RETURNS_VALUE, 2 );
     if( err < 0 ) return err;
-    err = CreateGlueToC( "I2CWRITE", i++, C_RETURNS_VOID, 2 );
+    err = CreateGlueToC( "I2CWRITE", i++, C_RETURNS_VALUE, 2 );
     if( err < 0 ) return err;
 
     return 0;
