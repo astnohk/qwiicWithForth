@@ -1,3 +1,11 @@
+\
+\ Read value from DS3231 via I2C
+\
+\ Use:
+\     include ds3231.fth
+\     ds3231-read-date
+\
+
 : ds3231-parse
     dup 4 >> 10 *
     swap
